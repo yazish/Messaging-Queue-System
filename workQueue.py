@@ -6,11 +6,14 @@ from collections import deque
 CLIENT_PORT = int(sys.argv[1]) if len(sys.argv) > 1 else 50000
 WORKER_PORT = int(sys.argv[2]) if len(sys.argv) > 2 else 50001
 
+print(f"work queue listening on client port {CLIENT_PORT} and worker port {WORKER_PORT}")
+
 # ---- State ----
 next_id = 1
 jobs = {}          # id -> {"text": str, "state": "waiting|running|completed"}
 waiting = deque()  # job ids waiting to assign
 running = set()    # job ids currently assigned
+worker_job = {}    # worker socket -> currently assigned job id (or None)
 
 # Per-connection buffers
 recv_buf = {}      # sock -> pending bytes
@@ -34,6 +37,13 @@ outputs = set()
 def close_sock(s):
     recv_buf.pop(s, None)
     is_worker.pop(s, None)
+    if s in worker_job:
+        jid = worker_job.pop(s)
+        if jid is not None and jid in jobs and jobs[jid]["state"] == "running":
+            # Requeue unfinished work so it is not lost when a worker disconnects.
+            running.discard(jid)
+            jobs[jid]["state"] = "waiting"
+            waiting.appendleft(jid)
     try:
         inputs.discard(s); outputs.discard(s)
         s.close()
@@ -75,11 +85,16 @@ def handle_worker_line(s, line: str):
     cmd = parts[0].upper()
 
     if cmd == "FETCH":
-        if waiting:
+        current = worker_job.get(s)
+        if current is not None and current in jobs and jobs[current]["state"] == "running":
+            text = jobs[current]["text"]
+            send_line(s, f"JOB {current} {text}")
+        elif waiting:
             jid = waiting.popleft()
             running.add(jid)
             jobs[jid]["state"] = "running"
             text = jobs[jid]["text"]
+            worker_job[s] = jid
             send_line(s, f"JOB {jid} {text}")
         else:
             send_line(s, "NOJOB")
@@ -91,6 +106,8 @@ def handle_worker_line(s, line: str):
                 running.remove(jid)
             if jid in jobs:
                 jobs[jid]["state"] = "completed"
+                if worker_job.get(s) == jid:
+                    worker_job[s] = None
                 send_line(s, "OK")
             else:
                 send_line(s, "ERR")
@@ -129,6 +146,8 @@ while True:
             inputs.add(conn)
             recv_buf[conn] = b""
             is_worker[conn] = (s is worker_ls)
+            if is_worker[conn]:
+                worker_job[conn] = None
         else:
             # Existing connection: read & handle complete lines
             lines = read_lines(s)

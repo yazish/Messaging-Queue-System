@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html><head>
+            <meta charset="UTF-8">
+            <title>Message Queueing System</title>
+            <style>
+/* From extension vscode.github */
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.vscode-dark img[src$=\#gh-light-mode-only],
+.vscode-light img[src$=\#gh-dark-mode-only],
+.vscode-high-contrast:not(.vscode-high-contrast-light) img[src$=\#gh-light-mode-only],
+.vscode-high-contrast-light img[src$=\#gh-dark-mode-only] {
+	display: none;
+}
+
+</style>
+            
+        <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/Microsoft/vscode/extensions/markdown-language-features/media/markdown.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/Microsoft/vscode/extensions/markdown-language-features/media/highlight.css">
+<style>
+            body {
+                font-family: -apple-system, BlinkMacSystemFont, 'Segoe WPC', 'Segoe UI', system-ui, 'Ubuntu', 'Droid Sans', sans-serif;
+                font-size: 14px;
+                line-height: 1.6;
+            }
+        </style>
+        <style>
+.task-list-item {
+    list-style-type: none;
+}
+
+.task-list-item-checkbox {
+    margin-left: -20px;
+    vertical-align: middle;
+    pointer-events: none;
+}
+</style>
+<style>
+:root {
+  --color-note: #0969da;
+  --color-tip: #1a7f37;
+  --color-warning: #9a6700;
+  --color-severe: #bc4c00;
+  --color-caution: #d1242f;
+  --color-important: #8250df;
+}
+
+</style>
+<style>
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-note: #2f81f7;
+    --color-tip: #3fb950;
+    --color-warning: #d29922;
+    --color-severe: #db6d28;
+    --color-caution: #f85149;
+    --color-important: #a371f7;
+  }
+}
+
+</style>
+<style>
+.markdown-alert {
+  padding: 0.5rem 1rem;
+  margin-bottom: 16px;
+  color: inherit;
+  border-left: .25em solid #888;
+}
+
+.markdown-alert>:first-child {
+  margin-top: 0
+}
+
+.markdown-alert>:last-child {
+  margin-bottom: 0
+}
+
+.markdown-alert .markdown-alert-title {
+  display: flex;
+  font-weight: 500;
+  align-items: center;
+  line-height: 1
+}
+
+.markdown-alert .markdown-alert-title .octicon {
+  margin-right: 0.5rem;
+  display: inline-block;
+  overflow: visible !important;
+  vertical-align: text-bottom;
+  fill: currentColor;
+}
+
+.markdown-alert.markdown-alert-note {
+  border-left-color: var(--color-note);
+}
+
+.markdown-alert.markdown-alert-note .markdown-alert-title {
+  color: var(--color-note);
+}
+
+.markdown-alert.markdown-alert-important {
+  border-left-color: var(--color-important);
+}
+
+.markdown-alert.markdown-alert-important .markdown-alert-title {
+  color: var(--color-important);
+}
+
+.markdown-alert.markdown-alert-warning {
+  border-left-color: var(--color-warning);
+}
+
+.markdown-alert.markdown-alert-warning .markdown-alert-title {
+  color: var(--color-warning);
+}
+
+.markdown-alert.markdown-alert-tip {
+  border-left-color: var(--color-tip);
+}
+
+.markdown-alert.markdown-alert-tip .markdown-alert-title {
+  color: var(--color-tip);
+}
+
+.markdown-alert.markdown-alert-caution {
+  border-left-color: var(--color-caution);
+}
+
+.markdown-alert.markdown-alert-caution .markdown-alert-title {
+  color: var(--color-caution);
+}
+
+</style>
+        
+        </head><body class="vscode-body vscode-dark"><h1 id="message-queueing-system">Message Queueing System</h1>
+<p><em>COMP 3010 - Fall 2025</em></p>
+<p><em>Kristina Zapp &amp; Zach Havens</em></p>
+<h2 id="overview">Overview</h2>
+<p>Message queues are a common design pattern for distributing work. There are several off-the-shelf solutions to do this (RabbitMQ, Kafka, and more), but the implementation of these systems is not difficult.</p>
+<p>Learning outcomes. By the end of this assignment students should be able to...</p>
+<ul>
+<li>use sockets to pass messages around a system</li>
+<li>use various message types for message passing</li>
+<li>use <code>select</code> to listen to multiple sockets/files at the same time</li>
+<li>apply messaging strategies to solve problems</li>
+</ul>
+<p>Our system has 3 layers/parts:</p>
+<ul>
+<li>A <em>very thin</em> client that adds jobs to the system, and can check on the status of jobs.</li>
+<li>A message queue aka job queue aka job broker that accepts new jobs and issues jobs to workers</li>
+<li>A worker that does "work" that takes a long time to complete to simulate "hard work"</li>
+</ul>
+<p>You may write this in any language you choose, but the code must compile (if relevant) and run on the aviary machines.</p>
+<h2 id="the-components">The components</h2>
+<p>A breakdown of each component, and what is expected.</p>
+<h3 id="the-client">The client</h3>
+<p>The client is anything that can submit jobs to the queue and check their status. You don't necessarily need to write your own client, though it can be helpful for your testing.</p>
+<p>In your submission, state how to use your client, or how to use an existing tool to be a client in your system.</p>
+<h3 id="the-work-queue">The work queue</h3>
+<p>The work queue is a server to the client above.... and a server to the workers below! They will use different ports to communicate with the work queue.</p>
+<p>Breaking this problem down into concepts:</p>
+<h4 id="job-submission">Job submission</h4>
+<p>Jobs come in as a simple message (text string), with a special header newline-delimited. These messages become jobs within the system.</p>
+<p>Messages to add jobs have the format</p>
+<pre><code class="language-text">JOB some text of any length\n
+</code></pre>
+<p>The server returns a simple number containing the job ID</p>
+<pre><code class="language-text">client ---JOB message--&gt; server
+return
+client &lt;--numeric job id-- server
+</code></pre>
+<p>Clients can also check the status of jobs in the system.</p>
+<pre><code class="language-text">STATUS 1
+</code></pre>
+<p>Which will return the status of job number 1, which have states waiting, running, complete. More on jobs below.</p>
+<h4 id="jobs">Jobs</h4>
+<p>Jobs stay in the system, and do not need to be stored if the work queue is restarted.</p>
+<p>Jobs should be sent to only one worker.</p>
+<p>States of the job are:</p>
+<ul>
+<li>waiting - the job has been added to the system, but not issued to a worker</li>
+<li>running - the job has been issued to a worker</li>
+<li>completed - the worker has informed the work queue the job is done</li>
+</ul>
+<h4 id="worker-communication">Worker communication</h4>
+<p>Workers fetch jobs from the work queue and "do the work". This uses the buffer pattern, where workers <em>pull</em> work.</p>
+<p>Workers will also notify the work queue of work completion by a <em>push</em>.</p>
+<p>How the workers and work queue communicate is up to you (ie. you get to define the internal protocol), but both sockets should be TCP sockets for communication. You will need to use <code>select</code> to solve this problem. <a href="https://docs.python.org/3/library/select.html#module-select">Python documents</a> are a little hard to read for this module. There is a good example <a href="http://pymotw.com/2/select/">in pymotw.com</a> which you are explicitly allowed to use in your assignment, along with a demo in the assignment folder.</p>
+<h4 id="running-the-job-queue">Running the job queue</h4>
+<p>Your queue program should take 2 arguments via command-line: the client port and the worker port.</p>
+<pre><code class="language-sh"><span class="hljs-comment"># Generally</span>
+./myWorkQueue clientPort workerPort
+<span class="hljs-comment"># example</span>
+./myWorkQueue 50000 50001
+<span class="hljs-comment"># or</span>
+python3 myWorkQueue.py 50000 50001
+</code></pre>
+<p>The <code>clientPort</code> is how jobs will be requested and job status queried by end clients. The <code>workerPort</code> is what workers will use to get assigned jobs and to indicate completion.</p>
+<p>If command-line arguments are not provided, either use default values (and print what values you are using on start-up), or provide a helpful error message of what is wrong.</p>
+<h3 id="the-workers">The worker(s)</h3>
+<p>As mentioned above, workers will use the internal protocol you designed to request "jobs" from the work queue. When a job is completed, the worker should update the queue and fetch new work.</p>
+<h3 id="performing-a-job">Performing a job</h3>
+<p>Performing a job consists of getting all the text associated with the job, and printing it out one word at a time every 0.25 seconds to a UDP socket. More specifically, we want to use <em>UDP multicast</em> to send this.</p>
+<p>Multicast requires sending messages to a specific multicast address: for this assignment we will use <code>239.0.0.1</code>. You will choose an arbitrary port when running your client. In order to simplify some of the work for you, a Python library is currently provided that will create sockets configured to send or receive multicast messages. You can use these sockets just like you would any other. (Libraries for C++ and node.js will be posted soon, and libraries for other languages will be provided on request.)</p>
+<p><strong>Important</strong>: You may not be required to do the configuration, but instead you should include some discussion in your README about why you think multicast makes sense in this simplified application!</p>
+<blockquote>
+<p>Note: to do work at regular intervals in Python, use <code>time.sleep</code>:</p>
+<pre><code class="language-python"><span class="hljs-comment"># at the to of your file</span>
+<span class="hljs-keyword">import</span> time
+
+<span class="hljs-comment"># in your code</span>
+time.sleep(<span class="hljs-number">0.25</span>)
+</code></pre>
+</blockquote>
+<h4 id="daemonizing-and-syslog">Daemonizing and <code>syslog</code></h4>
+<p>The worker is designed to run as a <a href="https://en.wikipedia.org/wiki/Daemon_(computing)">daemon</a> which does not display its <a href="https://en.wikipedia.org/wiki/Standard_streams">standard out</a> (read, can't <code>print</code> to console... because there is none). The way this has been solved is to use the <a href="https://en.wikipedia.org/wiki/Syslog#Network_protocol">syslog protocol</a> which uses UDP messages on port 514 or TCP messages on port 6514. We can not read <code>/var/log/syslog</code> on the aviary machines (lack of permissions), nor will we <em>actually</em> daemonize the task (there would be orphaned tasks <em>everywhere</em>) - but we can still prepare the application to be capable of these tasks.</p>
+<p>For this worker, minimally print "fetching job", "starting job", and "completed job" to syslog when those tasks are being done.</p>
+<h4 id="running-your-worker">Running your worker</h4>
+<p>Your program should accept the following command-line arguments</p>
+<pre><code class="language-sh"><span class="hljs-comment"># generally</span>
+./myProgram [workQueueIPAndPort] [outputPort] [syslogPort]
+<span class="hljs-comment"># actual example</span>
+./myProgram hawk.cs.umanitoba.ca:50001 30000 30001
+<span class="hljs-comment"># or</span>
+python3 myProgram.py hawk.cs.umanitoba.ca:50001 30000 30001
+</code></pre>
+<p>Print the words one every 0.25 seconds to the <code>outputPort</code>, and any log messages to the <code>syslogPort</code>.</p>
+<p>If command-line arguments are not provided, either use default values (and print what values you are using on start-up), or provide a helpful error message of what is wrong.</p>
+<h2 id="permitted-imports">Permitted imports</h2>
+<p>These are not comprehensive lists. You must use sockets directly with no libraries abstracting them, <em>except for the multicast sockets that are created by the provided library as mentioned above</em>.</p>
+<p>Queuing libraries would be acceptable (but likely more pain than help). Feel free to ask if you are uncertain if a library would not be in the spirit of the assignment.</p>
+<h3 id="python">Python</h3>
+<pre><code class="language-python"><span class="hljs-keyword">import</span> socket
+<span class="hljs-keyword">import</span> sys
+<span class="hljs-keyword">import</span> select
+<span class="hljs-keyword">import</span> re
+<span class="hljs-keyword">import</span> traceback <span class="hljs-comment"># though you should probably get rid of this for submission</span>
+<span class="hljs-keyword">import</span> time
+
+<span class="hljs-keyword">import</span> lib.multicast <span class="hljs-keyword">as</span> mc
+</code></pre>
+<h3 id="c">C++</h3>
+<pre><code class="language-c++"><span class="hljs-meta">#<span class="hljs-keyword">include</span> <span class="hljs-string">&lt;arpa/inet.h&gt;</span></span>
+<span class="hljs-meta">#<span class="hljs-keyword">include</span> <span class="hljs-string">&lt;netinet/in.h&gt;</span></span>
+<span class="hljs-meta">#<span class="hljs-keyword">include</span> <span class="hljs-string">&lt;sys/socket.h&gt;</span></span>
+</code></pre>
+<h3 id="java">Java</h3>
+<pre><code class="language-java"><span class="hljs-keyword">import</span> java.net.InetAddress;
+<span class="hljs-keyword">import</span> java.net.InetSocketAddress;
+<span class="hljs-keyword">import</span> java.net.NetworkInterface;
+<span class="hljs-keyword">import</span> java.net.StandardSocketOptions;
+<span class="hljs-keyword">import</span> java.nio.ByteBuffer;
+<span class="hljs-keyword">import</span> java.nio.channels.DatagramChannel;
+<span class="hljs-keyword">import</span> java.nio.channels.SelectionKey;
+<span class="hljs-keyword">import</span> java.nio.channels.Selector;
+<span class="hljs-keyword">import</span> java.nio.channels.ServerSocketChannel;
+<span class="hljs-keyword">import</span> java.nio.channels.SocketChannel;
+</code></pre>
+<h3 id="go">Go</h3>
+<p><em>In progress...</em></p>
+<h2 id="submission">Submission</h2>
+<p>Submit a <a href="https://daringfireball.net/projects/markdown/">markdown README.md file</a> that has the instructions on how to set up your system, along with all your source code (including the multicast library you used.) If you are using a complied language, you <em>must</em> include a makefile. If you have no readme, and the program doesn't "just go", it is not up to the graders to figure out how to make it work.</p>
+<blockquote>
+<p>Note: Don't forget to include your thoughts on why multicast makes sense in this application!</p>
+</blockquote>
+<p>Using <code>handin</code>: assuming you have a folder named <code>my_assignment_1_folder</code>. Go to its parent folder (so you can see <code>my_assignment_1_folder</code> in <code>ls</code>) and run <code>handin 3010 fall2025_a1 my_assignment_1_folder</code></p></body></html>

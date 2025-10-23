@@ -78,6 +78,11 @@ Implements a TCP-based worker process that fetches and processes jobs from the w
 1. Start the broker: `python3 workQueue.py 50000 50001`
 2. Submit a job: `python3 client.py hawk.cs.umanitoba.ca 50000 autoCall`
 3. Launch the worker: `python3 worker.py hawk.cs.umanitoba.ca:50001 30000 30001`
-4. Observe multicast output with `nc -ul 30000` and check job status via `python3 client.py hawk.cs.umanitoba.ca:50000 STATUS 1`
+4. Observe multicast output with `python3 listen_multicast.py 30000` (or specify
+   a different `--group` if you changed the default) and check job status via
+   `python3 client.py hawk.cs.umanitoba.ca:50000 STATUS 1`.
+5. To watch syslog-style worker messages you can still rely on `nc -ul 30001` –
+   each update now appears on its own line without needing additional input.
 
-These steps demonstrate the end-to-end flow: clients submit jobs, the worker fetches and broadcasts them, and the broker tracks completion.
+These steps demonstrate the end-to-end flow: clients submit jobs, the worker
+fetches and broadcasts them, and the broker tracks completion.

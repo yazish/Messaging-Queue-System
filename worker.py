@@ -51,11 +51,10 @@ def send_line(sock: socket.socket, line: str) -> bool:
 def send_to_syslog(message: str, syslog_port: int) -> None:
     """Send a message to syslog via UDP (broadcast, not multicast)."""
     try:
-        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        syslog_msg = f"<14>worker: {message}"
-        # Send as regular UDP unicast to localhost
-        sock.sendto(syslog_msg.encode(), ("127.0.0.1", syslog_port))
-        sock.close()
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
+            syslog_msg = f"<14>worker: {message}\n"
+            # Send as regular UDP unicast to localhost
+            sock.sendto(syslog_msg.encode(), ("127.0.0.1", syslog_port))
     except OSError:
         pass
 
@@ -67,7 +66,8 @@ def process_job(mcast_sock: socket.socket, tcp_sock: socket.socket, job_id: int,
     
     for word in text.split():
         # Send word via multicast using the library's socket
-        mcast_sock.sendto(word.encode(), (MULTICAST_GROUP, output_port))
+        payload = f"{word}\n".encode()
+        mcast_sock.sendto(payload, (MULTICAST_GROUP, output_port))
         time.sleep(WORD_DELAY)
         if stop_requested:
             break

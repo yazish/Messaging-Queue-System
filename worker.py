@@ -62,7 +62,7 @@ def send_to_syslog(message: str, syslog_port: int) -> None:
 def process_job(mcast_sock: socket.socket, tcp_sock: socket.socket, job_id: int,
                 text: str, output_port: int, syslog_port: int) -> bool:
     """Process a job by sending each word via multicast."""
-    send_to_syslog(f"starting job {job_id}", syslog_port)
+    send_to_syslog(f"running job {job_id}", syslog_port)
     
     for word in text.split():
         # Send word via multicast using the library's socket
@@ -105,10 +105,8 @@ def run_worker(host: str, port: int, output_port: int, syslog_port: int) -> None
             with socket.create_connection((host, port), timeout=10) as tcp_sock:
                 tcp_sock.settimeout(None)
                 send_to_syslog("worker started", syslog_port)
-                
+
                 while not stop_requested:
-                    send_to_syslog("fetching job", syslog_port)
-                    
                     if not send_line(tcp_sock, "FETCH"):
                         break
                     response = recv_line(tcp_sock)
@@ -123,7 +121,8 @@ def run_worker(host: str, port: int, output_port: int, syslog_port: int) -> None
                         except ValueError:
                             continue
                         text = parts[2]
-                        if not process_job(mcast_sock, tcp_sock, job_id, text, 
+                        send_to_syslog(f"fetching job {job_id}", syslog_port)
+                        if not process_job(mcast_sock, tcp_sock, job_id, text,
                                          output_port, syslog_port):
                             break
                     elif response == "NOJOB":
